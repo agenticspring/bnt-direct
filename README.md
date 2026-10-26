@@ -22,7 +22,11 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-Script ini download Seine, atur HugePages 1024 (runtime + persisten), lalu memasang miner sebagai service systemd `bnt-direct`: auto-restart kalau proses mati, dan auto-start lagi setelah reboot. Kalau mesin tidak pakai systemd, script fallback ke background biasa (`nohup`) dan auto-restart tidak berlaku di mesin itu.
+Script ini download Seine, atur HugePages 1024 (runtime + persisten), lalu memasang miner dengan auto-restart, tetap paste-only — tidak ada langkah manual tambahan:
+
+1. **systemd (utama):** service `bnt-direct`, auto-restart kalau proses mati, auto-start setelah reboot.
+2. **cron (fallback):** kalau tidak ada systemd tapi ada `crontab`, script memasang `@reboot` + cek tiap 5 menit lewat `start-miner.sh` — miner auto-start setelah reboot dan dinyalakan lagi kalau mati, selama daemon cron jalan saat boot.
+3. **background biasa (terakhir):** hanya kalau systemd dan cron sama-sama tidak tersedia, script fallback ke `nohup` dan auto-restart tidak berlaku di mesin itu.
 
 Mesin lama yang dulu dipasang versi `nohup`: cukup jalankan ulang `setup.sh` yang baru — skrip menghentikan proses `nohup` lama dulu, lalu service yang mengambil alih, jadi tidak ada dua miner jalan bersamaan.
 

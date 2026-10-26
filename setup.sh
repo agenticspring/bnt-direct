@@ -6,10 +6,11 @@
 #   chmod +x setup.sh
 #   ./setup.sh
 #
-# Script ini memasang miner sebagai service systemd (bnt-direct):
-# auto-restart kalau proses mati, dan auto-start lagi setelah reboot.
-# Kalau mesin tidak pakai systemd, fallback ke background biasa (nohup)
-# dan auto-restart tidak berlaku di mesin itu.
+# Script ini memasang miner dengan auto-restart, tetap paste-only:
+# lapis 1 systemd (bnt-direct) kalau tersedia; lapis 2 cron
+# (@reboot + cek tiap 5 menit) kalau tidak ada systemd tapi ada cron;
+# lapis 3 background biasa (nohup) hanya kalau systemd dan cron
+# sama-sama tidak tersedia, dan di lapis itu auto-restart tidak berlaku.
 # Pool: bntpool.com:3333 (pool lama), direct, tanpa relay, tanpa allowlist.
 # Wallet sudah tertanam langsung di bawah (wallet produksi Dez).
 # Kalau script ini dipakai orang lain, ganti ADDRESS dulu sebelum jalan.
@@ -97,8 +98,35 @@ EOF
   echo "Cek log: journalctl -u bnt-direct -n 50 --no-pager"
   echo "Harus ada: login accepted, share accepted, dan baris STATS yang nambah."
   echo "Berhenti: systemctl stop bnt-direct"
+elif command -v crontab >/dev/null 2>&1; then
+  echo "systemd tidak tersedia di mesin ini, pasang auto-restart via cron (@reboot + cek tiap 5 menit)."
+  echo "Tetap paste-only: tidak ada langkah manual tambahan."
+  cat > /root/bnt-direct/start-miner.sh <<EOF
+#!/usr/bin/env bash
+cd /root/bnt-direct
+echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
+sysctl -w vm.nr_hugepages=1024 2>/dev/null || true
+if pgrep -f '/root/bnt-direct/seine' >/dev/null 2>&1; then exit 0; fi
+nohup ./seine --pool-url ${POOL_URL} --address ${ADDRESS} > miner.log 2>&1 &
+disown
+EOF
+  chmod +x /root/bnt-direct/start-miner.sh
+  (crontab -l 2>/dev/null | grep -v '/root/bnt-direct/start-miner.sh'; printf '@reboot sleep 20 /root/bnt-direct/start-miner.sh\n*/5 * * * * /root/bnt-direct/start-miner.sh\n') | crontab -
+  crontab -l 2>/dev/null | grep 'start-miner.sh' || true
+  if ! pgrep -x cron >/dev/null 2>&1 && ! pgrep -x crond >/dev/null 2>&1; then
+    if command -v service >/dev/null 2>&1; then service cron start 2>/dev/null || service crond start 2>/dev/null || true; fi
+    echo "PERINGATAN: daemon cron belum terlihat jalan; @reboot hanya jalan kalau cron daemon aktif saat boot."
+  fi
+  /root/bnt-direct/start-miner.sh
+  sleep 15
+  tail -n 50 miner.log
+  echo ""
+  echo "SELESAI (cron). Miner auto-start via @reboot dan dicek/dinyalakan lagi tiap 5 menit selama cron daemon jalan saat boot."
+  echo "Cek log: cd /root/bnt-direct && tail -n 50 miner.log"
+  echo "Harus ada: login accepted, share accepted, dan baris STATS yang nambah."
+  echo "Berhenti: pkill -f ./seine; lalu hapus baris start-miner.sh dari crontab (crontab -e)"
 else
-  echo "PERINGATAN: systemd tidak tersedia di mesin ini, fallback ke background biasa (nohup)."
+  echo "PERINGATAN: systemd dan cron sama-sama tidak tersedia di mesin ini, fallback ke background biasa (nohup)."
   echo "Auto-restart setelah reboot TIDAK berlaku di mesin ini."
   nohup ./seine --pool-url "${POOL_URL}" --address "${ADDRESS}" > miner.log 2>&1 &
   disown
