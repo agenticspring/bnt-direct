@@ -1,0 +1,16 @@
+[Unit]
+Description=BNT miner direct ke pool lama (Seine)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/bnt-direct
+ExecStartPre=/bin/sh -c 'echo 1 > /proc/sys/vm/compact_memory || true'
+ExecStartPre=/sbin/sysctl -w vm.nr_hugepages=1024
+ExecStart=/root/bnt-direct/seine --pool-url stratum+tcp://bntpool.com:3333 --address PLMGsifmTC9Zn5pHqcMkbayvzSG3SBX6vAwJts3KQCwfGRsznpv2qdyCFyRpnh46TwcQu8mLEu1CVdHdQzsx7Ty637GQc
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

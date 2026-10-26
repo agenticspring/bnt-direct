@@ -22,21 +22,33 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-Script ini download Seine, atur HugePages 1024, lalu jalanin miner di background (`nohup`).
+Script ini download Seine, atur HugePages 1024 (runtime + persisten), lalu memasang miner sebagai service systemd `bnt-direct`: auto-restart kalau proses mati, dan auto-start lagi setelah reboot. Kalau mesin tidak pakai systemd, script fallback ke background biasa (`nohup`) dan auto-restart tidak berlaku di mesin itu.
+
+Mesin lama yang dulu dipasang versi `nohup`: cukup jalankan ulang `setup.sh` yang baru — skrip menghentikan proses `nohup` lama dulu, lalu service yang mengambil alih, jadi tidak ada dua miner jalan bersamaan.
 
 ## Verifikasi jalan
 
 ```bash
-cd /root/bnt-direct
-tail -n 50 miner.log
+systemctl is-active bnt-direct
+journalctl -u bnt-direct -n 50 --no-pager
 ```
 
-Harus ada `login accepted`, terus share `accepted` dan baris `STATS` yang nambah.
+Harus ada `login accepted`, terus share `accepted` dan baris `STATS` yang nambah. Cek juga service-nya ter-enable (auto-start setelah reboot):
+
+```bash
+systemctl is-enabled bnt-direct
+```
 
 ## Berhenti
 
 ```bash
-pkill -f ./seine
+systemctl stop bnt-direct
+```
+
+Untuk mematikan auto-start setelah reboot juga:
+
+```bash
+systemctl disable bnt-direct
 ```
 
 ## Catatan
